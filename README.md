@@ -4,9 +4,11 @@ Generate one set of connected pieces that can form either of two names. The appl
 
 This is an experimental prototype. Some pairs produce clear lettering and manageable pieces; others produce uneven outlines or many small fragments. Exact geometry does not guarantee a good puzzle.
 
+![Name Puzzle showing the MAYA arrangement](docs/preview.png)
+
 ## Use
 
-Enter two names and choose **Make puzzle**. Select either name or choose **Rearrange** to see the other arrangement. Choose **Play** to move the pieces into the second outline.
+Enter two names and choose **Make puzzle**. Select either name or choose **Rearrange** to see the other arrangement. Choose **Play** to move the pieces into the other name's outline.
 
 - Drag pieces with a mouse or touch screen.
 - Select a piece and choose **Rotate piece** to turn it.

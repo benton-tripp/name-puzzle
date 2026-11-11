@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Create a puzzle whose pieces rearrange into two names. Generate and play entirely in your browser.">
+  <meta name="theme-color" content="#f8f7f2">
+  <title>Name Puzzle</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./src/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#name-form">Skip to name entry</a>
+  <main class="app">
+    <header class="page-header">
+      <div class="brand">
+        <img src="./favicon.svg" alt="" width="34" height="34">
+        <h1>Name Puzzle</h1>
+      </div>
+      <span class="prototype-label">Prototype</span>
+    </header>
+
+    <p class="intro">One set of pieces. Two names.</p>
+
+    <form id="name-form" class="name-form" novalidate>
+      <div class="field">
+        <label for="first-name">First name</label>
+        <input id="first-name" name="first" value="LOVE" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="name-help form-error" required>
+      </div>
+      <div class="field">
+        <label for="second-name">Second name</label>
+        <input id="second-name" name="second" value="HOME" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="name-help form-error" required>
+      </div>
+      <button id="generate" class="button primary generate-button" type="submit">Make puzzle</button>
+      <button id="cancel" class="button secondary cancel-button" type="button" hidden>Cancel</button>
+      <p id="name-help" class="form-help">Use 2 to 10 letters per name. Accents are simplified; spaces, hyphens, and apostrophes are omitted.</p>
+      <p id="form-error" class="error" role="alert" hidden></p>
+    </form>
+
+    <div class="example-row" aria-label="Example names">
+      <span>Try a pair</span>
+      <button class="example" type="button" data-first="MAYA" data-second="NOAH">Maya &amp; Noah</button>
+      <button class="example" type="button" data-first="LUCA" data-second="ELIO">Luca &amp; Elio</button>
+      <button class="example" type="button" data-first="ALEX" data-second="SAM">Alex &amp; Sam</button>
+    </div>
+
+    <section class="puzzle-section" aria-label="Generated puzzle" aria-busy="true">
+      <div class="puzzle-heading">
+        <div class="arrangements" role="group" aria-label="Show an arrangement">
+          <button id="show-first" class="arrangement-button" type="button" aria-pressed="true" disabled>LOVE</button>
+          <span class="arrangement-separator" aria-hidden="true">/</span>
+          <button id="show-second" class="arrangement-button" type="button" aria-pressed="false" disabled>HOME</button>
+        </div>
+        <span id="piece-count" class="small-label"></span>
+      </div>
+
+      <div id="puzzle-board" class="puzzle-board" aria-label="Puzzle board">
+        <div id="board-placeholder" class="board-placeholder">Preparing the pieces…</div>
+      </div>
+
+      <div class="board-footer">
+        <p id="board-status" class="board-status" role="status" aria-live="polite">Generating the first puzzle.</p>
+        <span id="generation-clock" class="small-label" aria-hidden="true"></span>
+      </div>
+
+      <div class="puzzle-actions">
+        <div class="primary-actions">
+          <button id="rearrange" class="button primary" type="button" disabled>Rearrange</button>
+          <button id="play" class="button secondary" type="button" disabled>Play</button>
+          <button id="rotate" class="button secondary" type="button" hidden disabled>Rotate piece</button>
+          <button id="hint" class="button secondary" type="button" hidden>Place a piece</button>
+          <button id="reset" class="button quiet" type="button" hidden>Start over</button>
+        </div>
+        <div class="secondary-actions">
+          <button id="share" class="button quiet" type="button" disabled>Copy link</button>
+          <button id="new-cut" class="button quiet" type="button" disabled>New cut</button>
+        </div>
+      </div>
+      <p id="play-help" class="play-help" hidden>Drag a piece into the outline. Tap a piece and choose Rotate piece to turn it. With a keyboard, use Tab to select, arrow keys to move, and R to rotate.</p>
+      <div id="share-fallback" class="share-fallback" hidden>
+        <label for="share-url">Puzzle link</label>
+        <input id="share-url" readonly spellcheck="false">
+      </div>
+      <p id="share-status" class="small-label" role="status" aria-live="polite"></p>
+    </section>
+
+    <div class="information">
+      <details id="generation-details">
+        <summary>Generation Details</summary>
+        <dl class="generation-stats">
+          <div><dt>Time on this device</dt><dd id="stat-time">Waiting</dd></div>
+          <div><dt>Pieces</dt><dd id="stat-pieces">Waiting</dd></div>
+          <div><dt>Single-square pieces</dt><dd id="stat-singletons">Waiting</dd></div>
+          <div><dt>Squares in each name</dt><dd id="stat-cells">Waiting</dd></div>
+          <div><dt>Seed</dt><dd id="stat-seed">Waiting</dd></div>
+        </dl>
+        <p>This generator uses a square grid. Some pairs produce uneven lettering or many small pieces. The piece count and timing help compare results.</p>
+      </details>
+      <details>
+        <summary>How It Works</summary>
+        <p>Both names are drawn with the same total area. The generator finds connected pieces that fit in each name, allowing them to move and rotate. Every square is used once in each arrangement.</p>
+        <p>The puzzle is generated in your browser. Shared links contain the names and a seed so another browser can recreate the same pieces.</p>
+      </details>
+    </div>
+
+    <footer class="page-footer">
+      <span>Names stay in your browser unless you share the link.</span>
+      <a href="https://github.com/benton-tripp/name-puzzle" target="_blank" rel="noopener noreferrer">Source code</a>
+    </footer>
+    <noscript><p class="error">This puzzle needs JavaScript to generate and move the pieces.</p></noscript>
+  </main>
+</body>
+</html>

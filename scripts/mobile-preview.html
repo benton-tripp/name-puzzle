@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Name Puzzle Narrow Layout</title>
+<style>
+  body { margin: 16px; font: 14px system-ui; background: #e8e9e4; color: #253b33; }
+  label { display: block; margin-bottom: 12px; }
+  select { font: inherit; padding: 6px; }
+  iframe { display: block; width: 360px; height: 1000px; border: 1px solid #bdc8bb; background: #f8f7f2; }
+</style>
+<label>Layout width <select id="width"><option>320</option><option selected>360</option><option>390</option><option>768</option></select></label>
+<iframe id="preview" src="/" title="Name Puzzle narrow layout"></iframe>
+<script>
+  document.getElementById('width').addEventListener('change', (event) => {
+    document.getElementById('preview').style.width = event.target.value + 'px';
+  });
+</script>
+</html>
