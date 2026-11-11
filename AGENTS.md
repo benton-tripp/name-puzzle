@@ -20,7 +20,7 @@ All commits must use the repository owner's verified Git identity. Confirm the a
 - Each piece must be connected by shared cell edges.
 - The same piece must retain its shape in both arrangements.
 - Poses are translations and quarter turns around the local origin. Rotating a unit cell requires the corner offsets used in the geometry tests.
-- Preserve deterministic generation for each version and seed. Do not silently change the output for existing versioned links.
+- Preserve deterministic generation for each version, seed, and option set. Do not silently change the output for existing versioned links. Changes to fixed glyphs or search rules require a new generator version.
 - Keep glyph data fixed across browsers and retain its license notices.
 
 ## Validation and Publication

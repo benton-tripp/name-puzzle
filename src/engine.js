@@ -1,4 +1,5 @@
 import { GLYPHS } from './glyphs.js';
+import { GLYPHS_V2 } from './glyphs-v2.js';
 
 const VERSION = 1;
 const PAIR_LIMIT = 70000000;
@@ -41,15 +42,18 @@ function randomSource(seed) {
   };
 }
 
-function makeTarget(name, area) {
-  const records = [...name].map(char => GLYPHS[area]?.[char]);
+function makeTarget(name, area, glyphTable = GLYPHS, includeGlyphs = false) {
+  const records = [...name].map(char => glyphTable[area]?.[char]);
   if (records.some(record => !record)) throw failure('This name combination has no glyph data.', 'GLYPH_DATA');
   const height = records[0][1] + 2;
   const width = records.reduce((sum, record) => sum + record[0], 0) + 2 * name.length;
   const mask = new Uint8Array(width * height);
   const cells = [];
+  const glyphs = [];
   let offset = 1;
+  let glyphIndex = 0;
   for (const [glyphWidth, glyphHeight, hex] of records) {
+    const glyphCells = [];
     for (let byte = 0; byte < hex.length / 2; byte++) {
       const bits = Number.parseInt(hex.slice(byte * 2, byte * 2 + 2), 16);
       for (let bit = 0; bit < 8; bit++) {
@@ -59,11 +63,14 @@ function makeTarget(name, area) {
         const y = 1 + Math.floor(index / glyphWidth);
         mask[y * width + x] = 1;
         cells.push([x, y]);
+        if (includeGlyphs) glyphCells.push([x, y]);
       }
     }
+    if (includeGlyphs) glyphs.push({ index: glyphIndex, character: name[glyphIndex], cells: glyphCells });
+    glyphIndex++;
     offset += glyphWidth + 2;
   }
-  return { width, height, mask, cells };
+  return { width, height, mask, cells, glyphs };
 }
 
 function neighbors(index, width, height, visit) {
@@ -287,6 +294,182 @@ function compactPieces(original, a, b) {
   return { pieces, merges };
 }
 
+function connectedSplit(piece, required) {
+  const cells = piece.cells;
+  const count = cells.length;
+  if (count < 2 || required.size < 2) throw failure('A shared letter cannot be split.', 'INVALID_GEOMETRY');
+  const width = Math.max(...cells.map(([x]) => x)) + 1;
+  const height = Math.max(...cells.map(([, y]) => y)) + 1;
+  const lookup = new Int32Array(width * height).fill(-1);
+  cells.forEach(([x, y], id) => { lookup[y * width + x] = id; });
+  const adjacency = cells.map(([x, y]) => {
+    const adjacent = [];
+    neighbors(y * width + x, width, height, index => {
+      if (lookup[index] >= 0) adjacent.push(lookup[index]);
+    });
+    return adjacent;
+  });
+  let best = null;
+  let bestScore = null;
+
+  function consider(ids, knownConnected = false) {
+    if (!ids.length || ids.length === count) return;
+    const membership = new Uint8Array(count);
+    let requiredInside = 0;
+    for (const id of ids) {
+      membership[id] = 1;
+      if (required.has(id)) requiredInside++;
+    }
+    if (!requiredInside || requiredInside === required.size) return;
+    if (!knownConnected) {
+      for (const group of [0, 1]) {
+        const start = membership.findIndex(value => value === group);
+        const seen = new Uint8Array(count);
+        const queue = [start];
+        seen[start] = 1;
+        for (let head = 0; head < queue.length; head++) {
+          for (const next of adjacency[queue[head]]) {
+            if (membership[next] === group && !seen[next]) {
+              seen[next] = 1;
+              queue.push(next);
+            }
+          }
+        }
+        if (queue.length !== (group ? ids.length : count - ids.length)) return;
+      }
+    }
+    const squares = [false, false];
+    let cutEdges = 0;
+    for (let id = 0; id < count; id++) {
+      const [x, y] = cells[id];
+      for (const next of adjacency[id]) if (next > id && membership[next] !== membership[id]) cutEdges++;
+      if (x + 1 >= width || y + 1 >= height) continue;
+      const index = y * width + x;
+      const square = [lookup[index + 1], lookup[index + width], lookup[index + width + 1]];
+      if (square.every(next => next >= 0 && membership[next] === membership[id])) squares[membership[id]] = true;
+    }
+    const sizes = [count - ids.length, ids.length];
+    const score = [
+      sizes.filter(size => size === 1).length,
+      sizes.filter(size => size <= 4).length,
+      sizes.filter((size, group) => size >= 8 && !squares[group]).length,
+      Math.abs(sizes[0] - sizes[1]), cutEdges,
+    ];
+    let better = !bestScore;
+    if (bestScore) {
+      for (let index = 0; index < score.length; index++) {
+        if (score[index] === bestScore[index]) continue;
+        better = score[index] < bestScore[index];
+        break;
+      }
+    }
+    if (better) {
+      bestScore = score;
+      best = membership;
+    }
+  }
+
+  for (let axis = 0; axis < 2; axis++) {
+    const bound = axis ? height : width;
+    for (let cut = 1; cut < bound; cut++) {
+      const ids = [];
+      cells.forEach((cell, id) => { if (cell[axis] < cut) ids.push(id); });
+      consider(ids);
+    }
+  }
+  const roots = new Set();
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+    let root = 0;
+    for (let id = 1; id < count; id++) {
+      if (cells[id][0] * dx + cells[id][1] * dy < cells[root][0] * dx + cells[root][1] * dy) root = id;
+    }
+    roots.add(root);
+  }
+  for (const root of roots) {
+    for (const reverse of [false, true]) {
+      const parent = new Int32Array(count).fill(-1);
+      parent[root] = root;
+      const queue = [root];
+      const children = Array.from({ length: count }, () => []);
+      for (let head = 0; head < queue.length; head++) {
+        const id = queue[head];
+        const adjacent = reverse ? adjacency[id].slice().reverse() : adjacency[id];
+        for (const next of adjacent) {
+          if (parent[next] >= 0) continue;
+          parent[next] = id;
+          children[id].push(next);
+          queue.push(next);
+        }
+      }
+      const entry = new Int32Array(count);
+      const exit = new Int32Array(count);
+      const order = [];
+      const stack = [[root, false]];
+      while (stack.length) {
+        const [id, visited] = stack.pop();
+        if (visited) { exit[id] = order.length; continue; }
+        entry[id] = order.length;
+        order.push(id);
+        stack.push([id, true]);
+        for (let index = children[id].length - 1; index >= 0; index--) stack.push([children[id][index], false]);
+      }
+      for (const id of queue) if (id !== root) consider(order.slice(entry[id], exit[id]), true);
+    }
+  }
+  if (!best) throw failure('No connected cut was found for a shared letter.', 'INVALID_GEOMETRY');
+  const translatePose = (pose, x, y) => {
+    if (pose.turn === 1) [x, y] = [-y, x];
+    else if (pose.turn === 2) [x, y] = [-x, -y];
+    else if (pose.turn === 3) [x, y] = [y, -x];
+    return { x: pose.x + x, y: pose.y + y, turn: pose.turn };
+  };
+  return [0, 1].map(group => {
+    const part = shapeForm(cells.filter((_, id) => best[id] === group));
+    return {
+      id: 0, cells: part.cells, size: part.cells.length,
+      a: translatePose(piece.a, part.x, part.y),
+      b: translatePose(piece.b, part.x, part.y),
+    };
+  });
+}
+
+function splitSharedGlyphs(original, a, b, first, second) {
+  const shared = new Set([...first].filter(character => second.includes(character)));
+  const glyphs = [['a', a], ['b', b]].flatMap(([side, target]) => target.glyphs
+    .filter(glyph => shared.has(glyph.character)).map(glyph => ({ side, target, glyph })));
+  let pieces = original;
+  let splits = 0;
+  for (let step = 0; step <= glyphs.length; step++) {
+    const owners = {};
+    for (const [side, target] of [['a', a], ['b', b]]) {
+      const mask = new Int32Array(target.width * target.height).fill(-1);
+      for (let id = 0; id < pieces.length; id++) {
+        for (const [x, y] of positionedCells(pieces[id], side)) mask[y * target.width + x] = id;
+      }
+      owners[side] = mask;
+    }
+    const whole = glyphs.find(({ side, target, glyph }) => {
+      const firstOwner = owners[side][glyph.cells[0][1] * target.width + glyph.cells[0][0]];
+      return glyph.cells.every(([x, y]) => owners[side][y * target.width + x] === firstOwner);
+    });
+    if (!whole) return { pieces, splits, occurrences: glyphs.length };
+    if (step === glyphs.length) throw failure('Shared letters did not pass the split check.', 'INVALID_GEOMETRY');
+    const { side, target, glyph } = whole;
+    const owner = owners[side][glyph.cells[0][1] * target.width + glyph.cells[0][0]];
+    if (owner < 0) throw failure('A shared letter has uncovered cells.', 'INVALID_GEOMETRY');
+    const glyphCells = new Set(glyph.cells.map(([x, y]) => y * target.width + x));
+    const required = new Set();
+    positionedCells(pieces[owner], side).forEach(([x, y], id) => {
+      if (glyphCells.has(y * target.width + x)) required.add(id);
+    });
+    const parts = connectedSplit(pieces[owner], required);
+    pieces = [...pieces.slice(0, owner), ...parts, ...pieces.slice(owner + 1)];
+    pieces.forEach((piece, id) => { piece.id = id; });
+    splits++;
+  }
+  throw failure('Shared letters did not pass the split check.', 'INVALID_GEOMETRY');
+}
+
 function validatePuzzle(puzzle) {
   for (const side of ['a', 'b']) {
     const target = puzzle.targets[side];
@@ -315,7 +498,7 @@ function validatePuzzle(puzzle) {
   }
 }
 
-function generateCandidate({ first, second, seed = 1 }, { onProgress, config }) {
+function generateCandidate({ first, second, seed = 1, splitSharedLetters = false, version = VERSION }, { onProgress, config }) {
   first = normalizeName(first);
   second = normalizeName(second);
   if (typeof seed !== 'number' || !Number.isFinite(seed)) throw failure('Use a finite numeric seed.', 'INVALID_SEED');
@@ -324,8 +507,9 @@ function generateCandidate({ first, second, seed = 1 }, { onProgress, config }) 
   notify('Preparing letters', 0);
   const common = first.length * second.length / gcd(first.length, second.length);
   const area = common * Math.ceil(105 * Math.max(first.length, second.length) / common);
-  const a = makeTarget(first, area / first.length);
-  const b = makeTarget(second, area / second.length);
+  const glyphTable = version === 2 ? GLYPHS_V2 : GLYPHS;
+  const a = makeTarget(first, area / first.length, glyphTable, version === 2);
+  const b = makeTarget(second, area / second.length, glyphTable, version === 2);
   if (a.cells.length !== b.cells.length) throw failure('The target areas differ.', 'INVALID_GEOMETRY');
   const aMask = a.mask.slice();
   const bMask = b.mask.slice();
@@ -394,8 +578,15 @@ function generateCandidate({ first, second, seed = 1 }, { onProgress, config }) 
   notify('Combining compatible pieces', 0.92);
   const compacted = compactPieces(pieces, a, b);
   pieces = compacted.pieces;
+  let sharedLetterSplits = 0;
+  if (splitSharedLetters) {
+    notify('Splitting shared letters', 0.94);
+    const split = splitSharedGlyphs(pieces, a, b, first, second);
+    pieces = split.pieces;
+    sharedLetterSplits = split.splits;
+  }
   const puzzle = {
-    version: VERSION, first, second, seed,
+    version, first, second, seed,
     targets: { a: { width: a.width, height: a.height, cells: a.cells }, b: { width: b.width, height: b.height, cells: b.cells } },
     pieces,
     metrics: {
@@ -406,15 +597,26 @@ function generateCandidate({ first, second, seed = 1 }, { onProgress, config }) 
       rawPieceCount, compactionMerges: compacted.merges,
     },
   };
+  if (version === 2) {
+    const shared = new Set([...first].filter(character => second.includes(character)));
+    puzzle.splitSharedLetters = splitSharedLetters;
+    puzzle.targets.a.glyphs = a.glyphs;
+    puzzle.targets.b.glyphs = b.glyphs;
+    puzzle.metrics.sharedLetterSplits = sharedLetterSplits;
+    puzzle.metrics.sharedGlyphOccurrences = [...a.glyphs, ...b.glyphs].filter(glyph => shared.has(glyph.character)).length;
+  }
   notify('Checking the result', 0.95);
   validatePuzzle(puzzle);
   notify('Ready', 1);
   return puzzle;
 }
 
-export function generatePuzzle({ first, second, seed = 1 } = {}, { onProgress } = {}) {
+export function generatePuzzle({ first, second, seed = 1, splitSharedLetters = false, version = splitSharedLetters ? 2 : VERSION } = {}, { onProgress } = {}) {
   first = normalizeName(first);
   second = normalizeName(second);
+  if (typeof splitSharedLetters !== 'boolean') throw failure('The shared-letter option must be true or false.', 'INVALID_OPTION');
+  if (version !== 1 && version !== 2) throw failure('Use generator version 1 or 2.', 'INVALID_VERSION');
+  if (version === 1 && splitSharedLetters) throw failure('Splitting shared letters requires generator version 2.', 'INVALID_OPTION');
   if (typeof seed !== 'number' || !Number.isFinite(seed)) throw failure('Use a finite numeric seed.', 'INVALID_SEED');
   seed = seed >>> 0;
   let best;
@@ -423,7 +625,7 @@ export function generatePuzzle({ first, second, seed = 1 } = {}, { onProgress } 
   const searchedPieceCounts = [];
   for (let pass = 0; pass < SEARCH_PASSES.length; pass++) {
     const candidateSeed = pass ? (seed ^ Math.imul(pass, 0x9E3779B9)) >>> 0 : seed;
-    const result = generateCandidate({ first, second, seed: candidateSeed }, {
+    const result = generateCandidate({ first, second, seed: candidateSeed, splitSharedLetters, version }, {
       config: SEARCH_PASSES[pass],
       onProgress: update => {
         if (typeof onProgress === 'function') onProgress({

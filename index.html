@@ -35,6 +35,10 @@
       <button id="generate" class="button primary generate-button" type="submit">Make puzzle</button>
       <button id="cancel" class="button secondary cancel-button" type="button" hidden>Cancel</button>
       <p id="name-help" class="form-help">Use 2 to 10 letters per name. Accents are simplified; spaces, hyphens, and apostrophes are omitted.</p>
+      <div class="generation-option">
+        <label class="option-label" for="split-shared-letters"><input id="split-shared-letters" type="checkbox" aria-describedby="split-help">Split shared letters</label>
+        <p id="split-help" class="option-help">Use at least two pieces for each letter that appears in both names. Choose Make puzzle to apply.</p>
+      </div>
       <p id="form-error" class="error" role="alert" hidden></p>
     </form>
 
@@ -47,13 +51,18 @@
 
     <section class="puzzle-section" aria-label="Generated puzzle" aria-busy="true">
       <div class="puzzle-heading">
-        <div class="arrangements" role="group" aria-label="Show an arrangement">
-          <button id="show-first" class="arrangement-button" type="button" aria-pressed="true" disabled>LOVE</button>
-          <span class="arrangement-separator" aria-hidden="true">/</span>
-          <button id="show-second" class="arrangement-button" type="button" aria-pressed="false" disabled>HOME</button>
+        <div class="arrangement-selector">
+          <span id="arrangement-label" class="small-label">Arrangement</span>
+          <div id="arrangements" class="arrangements" role="group" aria-label="Show an arrangement">
+            <button id="show-first" class="arrangement-button" type="button" aria-pressed="true" disabled>LOVE</button>
+            <span class="arrangement-separator" aria-hidden="true">/</span>
+            <button id="show-second" class="arrangement-button" type="button" aria-pressed="false" disabled>HOME</button>
+          </div>
         </div>
         <span id="piece-count" class="small-label"></span>
       </div>
+      <p id="target-help" class="target-help" hidden>Choose a name above to change the target. Changing targets starts a new round.</p>
+      <p id="legacy-note" class="target-help" hidden>This link uses the original letter shapes. Choose Make puzzle to use the updated shapes.</p>
 
       <div id="puzzle-board" class="puzzle-board" aria-label="Puzzle board">
         <div id="board-placeholder" class="board-placeholder">Preparing the pieces…</div>
@@ -67,7 +76,7 @@
       <div class="puzzle-actions">
         <div class="primary-actions">
           <button id="rearrange" class="button primary" type="button" disabled>Rearrange</button>
-          <button id="play" class="button secondary" type="button" disabled>Play</button>
+          <button id="play" class="button secondary" type="button" disabled>Play HOME</button>
           <button id="rotate" class="button secondary" type="button" hidden disabled>Rotate piece</button>
           <button id="hint" class="button secondary" type="button" hidden>Place a piece</button>
           <button id="reset" class="button quiet" type="button" hidden>Start over</button>

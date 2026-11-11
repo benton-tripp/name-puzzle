@@ -57,13 +57,19 @@ h1 { margin: 0; font-size: 25px; line-height: 1.2; font-weight: 650; letter-spac
 .cancel-button { grid-column: 3; }
 .form-help, .error { grid-column: 1 / -1; margin: 0; font-size: 12px; }
 .form-help { color: var(--muted); }
+.generation-option { grid-column: 1 / -1; margin-top: 3px; }
+.option-label { display: inline-flex; align-items: center; gap: 10px; min-height: 38px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.option-label input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.option-help { color: var(--muted); font-size: 12px; margin: 0 0 0 28px; }
 .error { color: #963f2f; padding: 5px 0; }
 .example-row { flex-wrap: wrap; gap: 7px 12px; margin: 15px 0 26px; font-size: 12px; color: var(--muted); }
 .example { border: 0; border-bottom: 1px solid #c9cfc4; padding: 3px 0; background: transparent; color: var(--ink); font-size: inherit; }
 .example:hover { border-bottom-color: var(--accent); }
 .puzzle-section { border: 1px solid var(--line); border-radius: 16px; background: var(--paper); padding: 17px 22px 14px; }
 .puzzle-heading { justify-content: space-between; flex-wrap: wrap; gap: 6px 20px; }
+.arrangement-selector { min-width: 0; max-width: 100%; }
 .arrangements { display: flex; align-items: center; gap: 4px; max-width: 100%; }
+.target-help { font-size: 12px; color: var(--muted); margin: 5px 0 0; }
 .arrangement-button { border: 0; padding: 8px 9px; color: var(--muted); background: transparent; border-radius: 7px; font-size: 14px; font-weight: 650; letter-spacing: .06em; overflow-wrap: anywhere; }
 .arrangement-button[aria-pressed="true"] { color: var(--ink); background: #e9ede3; }
 .arrangement-separator { color: #a8b0a5; }
