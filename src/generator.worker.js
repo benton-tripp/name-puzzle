@@ -1,8 +1,10 @@
-import { generatePuzzle } from './engine.js';
+let engineReady;
 
-self.addEventListener('message', ({ data }) => {
-  const started = performance.now();
+self.addEventListener('message', async ({ data }) => {
   try {
+    engineReady ??= import('./engine.js');
+    const { generatePuzzle } = await engineReady;
+    const started = performance.now();
     const puzzle = generatePuzzle(data, {
       onProgress: (progress) => self.postMessage({ type: 'progress', progress }),
     });

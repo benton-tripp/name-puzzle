@@ -89,7 +89,7 @@ function nextSeed() {
   return Date.now() >>> 0;
 }
 
-function generate({ first = firstInput.value, second = secondInput.value, seed = nextSeed(), splitSharedLetters = splitInput.checked, version = 2 } = {}) {
+function generate({ first = firstInput.value, second = secondInput.value, seed = nextSeed(), splitSharedLetters = splitInput.checked, version = 3 } = {}) {
   stopWorker();
   const job = ++generation;
   clearError();
@@ -137,7 +137,7 @@ function generate({ first = firstInput.value, second = secondInput.value, seed =
       firstInput.value = currentPuzzle.first;
       secondInput.value = currentPuzzle.second;
       splitInput.checked = currentPuzzle.splitSharedLetters === true;
-      get('legacy-note').hidden = currentPuzzle.version !== 1;
+      get('legacy-note').hidden = currentPuzzle.version >= 3;
       get('show-first').textContent = currentPuzzle.first;
       get('show-second').textContent = currentPuzzle.second;
       get('piece-count').textContent = `${currentPuzzle.pieces.length} pieces`;

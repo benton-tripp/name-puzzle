@@ -4,6 +4,8 @@ import test from 'node:test';
 import { generatePuzzle, normalizeName } from '../src/engine.js';
 import { GLYPHS } from '../src/glyphs.js';
 import { GLYPHS_V2 } from '../src/glyphs-v2.js';
+import { FONT_V3 } from '../src/glyphs-v3.js';
+import { createWordTargets } from '../src/lettering.js';
 
 const cellKey = ([x, y]) => `${x},${y}`;
 
@@ -90,6 +92,109 @@ function countIsolatedBoundaryDefects(record) {
   return defects;
 }
 
+function normalizedCellSet(cells) {
+  const minX = Math.min(...cells.map(([x]) => x));
+  const minY = Math.min(...cells.map(([, y]) => y));
+  return new Set(cells.map(([x, y]) => cellKey([x - minX, y - minY])));
+}
+
+function assertFontTarget(target, name) {
+  assert.ok(target.font && Number.isSafeInteger(target.font.size), `${name}: font provenance`);
+  const family = FONT_V3[target.font.size];
+  assert.ok(family, `${name}: supported font family`);
+  assert.equal(target.height, family.height + 2, `${name}: stored font height plus padding`);
+  assert.equal(target.font.capHeight, family.capHeight);
+  assert.ok(target.font.capHeight >= 15, `${name}: readable cap height`);
+  assert.equal(target.font.baseline, family.baseline + 1,
+    `${name}: stored baseline is translated with the font`);
+  assert.equal(target.glyphs.length, name.length);
+  assert.ok(target.cells.length >= 400 && target.cells.length <= 1800, `${name}: bounded word area`);
+  const occupied = new Set();
+  const repeated = new Map();
+  let nextX = 1;
+
+  for (const [index, glyph] of target.glyphs.entries()) {
+    const label = `${name}: ${glyph.character} at ${index}`;
+    assert.equal(glyph.index, index);
+    assert.equal(glyph.character, name[index]);
+    const options = family.glyphs[glyph.character];
+    assert.ok(Number.isInteger(glyph.variantIndex) && glyph.variantIndex >= 0
+      && glyph.variantIndex < options.length, `${label}: valid fixed variant`);
+    const [width, area, cost, hex] = options[glyph.variantIndex];
+    assert.ok(Number.isSafeInteger(cost) && cost >= 0, `${label}: integer variant cost`);
+    assert.equal(glyph.width, width);
+    assert.equal(glyph.area, area);
+    assert.equal(glyph.cells.length, area);
+    assert.equal(glyph.x, nextX, `${label}: regular inter-letter spacing`);
+    assert.equal(glyph.y, 1, `${label}: common font origin`);
+    const source = unpackGlyph([width, family.height, hex]);
+    const expected = new Set(source.map(([x, y]) => cellKey([x + glyph.x, y + glyph.y])));
+    const actual = assertUniqueCells(glyph.cells, label);
+    assert.deepEqual(actual, expected, `${label}: exact translated source mask, without cell edits`);
+    assertConnected(glyph.cells, label);
+    for (const key of actual) {
+      assert.ok(!occupied.has(key), `${label}: no overlap between glyphs`);
+      occupied.add(key);
+    }
+    const previous = repeated.get(glyph.character);
+    if (previous) {
+      assert.equal(glyph.variantIndex, previous.variantIndex, `${label}: repeated variant is consistent`);
+      assert.deepEqual(normalizedCellSet(glyph.cells), normalizedCellSet(previous.cells),
+        `${label}: repeated shape is consistent`);
+    } else repeated.set(glyph.character, glyph);
+    nextX += width + 2;
+  }
+  assert.equal(target.width, nextX - 1, `${name}: complete word width`);
+  assert.deepEqual(occupied, new Set(target.cells.map(cellKey)), `${name}: glyphs cover the target`);
+}
+
+function assertStraightLetter(glyph, label) {
+  const minX = Math.min(...glyph.cells.map(([x]) => x));
+  const minY = Math.min(...glyph.cells.map(([, y]) => y));
+  const maxX = Math.max(...glyph.cells.map(([x]) => x));
+  const maxY = Math.max(...glyph.cells.map(([, y]) => y));
+  const width = maxX - minX + 1;
+  const rows = Array.from({ length: maxY - minY + 1 }, () => []);
+  for (const [x, y] of glyph.cells) rows[y - minY].push(x - minX);
+  const groups = [];
+  for (const row of rows) {
+    row.sort((a, b) => a - b);
+    assert.ok(row.length > 0, `${label}: continuous vertical stroke`);
+    assert.deepEqual(row, Array.from({ length: row.length }, (_, x) => row[0] + x),
+      `${label}: each stroke row is contiguous`);
+    const previous = groups.at(-1);
+    if (previous && previous.left === row[0] && previous.width === row.length) previous.rows += 1;
+    else groups.push({ left: row[0], width: row.length, rows: 1 });
+  }
+
+  if (glyph.character === 'L') {
+    assert.equal(groups.length, 2, `${label}: straight stem and foot, without nodules`);
+    assert.ok(groups.every(group => group.left === 0));
+    assert.ok(groups[0].width < width);
+    assert.equal(groups[1].width, width);
+  } else if (glyph.character === 'I') {
+    assert.equal(groups.length, 3, `${label}: complete caps and straight stem, without stepped shoulders`);
+    assert.equal(groups[0].left, 0);
+    assert.equal(groups[2].left, 0);
+    assert.equal(groups[0].width, width);
+    assert.equal(groups[2].width, width);
+    assert.equal(groups[0].rows, groups[2].rows, `${label}: matching cap thickness`);
+    const stem = groups[1];
+    assert.ok(stem.left > 0 && stem.left + stem.width < width, `${label}: caps project on both sides`);
+    assert.ok(Math.abs(stem.left - (width - stem.left - stem.width)) <= 1,
+      `${label}: centered stem`);
+  } else if (glyph.character === 'E') {
+    assert.equal(groups.length, 5, `${label}: three regular bars and two openings`);
+    assert.ok(groups.every(group => group.left === 0), `${label}: straight outer stem`);
+    assert.equal(groups[0].width, width);
+    assert.equal(groups[4].width, width);
+    assert.equal(groups[1].width, groups[3].width, `${label}: consistent vertical stem`);
+    assert.ok(groups[2].width > groups[1].width && groups[2].width <= width);
+    assert.equal(groups[0].rows, groups[2].rows, `${label}: consistent top and middle bar thickness`);
+    assert.equal(groups[2].rows, groups[4].rows, `${label}: consistent middle and bottom bar thickness`);
+  }
+}
+
 // Transform the four vertices, then recover the cell's top-left corner.
 // This checks the pose convention independently of cell-placement formulas.
 function placeCell([x, y], pose) {
@@ -151,6 +256,7 @@ function assertGlyphOwnership(puzzle, owners) {
         }
       }
     }
+    if (puzzle.version === 3) assertFontTarget(target, name);
   }
 
   assert.equal(puzzle.metrics.sharedGlyphOccurrences, sharedOccurrences);
@@ -162,7 +268,7 @@ function assertGlyphOwnership(puzzle, owners) {
 function assertPuzzle(puzzle, input) {
   const version = input.version ?? (input.splitSharedLetters === true ? 2 : 1);
   assert.equal(puzzle.version, version);
-  if (version === 2) {
+  if (version >= 2) {
     assert.equal(puzzle.splitSharedLetters, input.splitSharedLetters ?? false);
   } else {
     assert.ok(!Object.hasOwn(puzzle, 'splitSharedLetters'));
@@ -231,7 +337,7 @@ function assertPuzzle(puzzle, input) {
   assert.equal(puzzle.metrics.area, totalArea);
   assert.equal(puzzle.metrics.smallestPiece, Math.min(...puzzle.pieces.map(({ size }) => size)));
   assert.equal(puzzle.metrics.largestPiece, Math.max(...puzzle.pieces.map(({ size }) => size)));
-  if (version === 2) assertGlyphOwnership(puzzle, owners);
+  if (version >= 2) assertGlyphOwnership(puzzle, owners);
 }
 
 // Complete JSON outputs captured before the version 2 changes, from engine SHA-256
@@ -251,10 +357,28 @@ const version1Baselines = [
     '45c88cba196978ba096efd38b80b1d66210c05c37faa65bac66777c4a088a157'],
 ];
 
+// Complete version 2 outputs captured before the version 3 changes.
+// Engine SHA-256: 0b074ebdb50812d16e1a9d5362b8a2672bed9cbcc593e7d9cd7b6fdbe507ba5d.
+const version2Baselines = [
+  [{ first: 'LOVE', second: 'HOME', seed: 1, version: 2, splitSharedLetters: false },
+    '60d6dedfc372ea7be9f2dfe689746ee406f1e9fbe4d4b6a2dafd672ae15c7c28'],
+  [{ first: 'LOVE', second: 'HOME', seed: 1, version: 2, splitSharedLetters: true },
+    '123a06b4935b8eb94a4306ba02c7b121d0c2a7105f470da221220fd140a16119'],
+  [{ first: 'LILY', second: 'ELLA', seed: 7, version: 2, splitSharedLetters: false },
+    'a6e64dfea3274a4e7a8184823137a1299b343942316efcc8069987916705639e'],
+  [{ first: 'LILY', second: 'ELLA', seed: 7, version: 2, splitSharedLetters: true },
+    '56b024121c2fa568433862a51d0bfdfec56f2fdc981d851ec2d47df8b09d509b'],
+];
+
 const jsonHash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 for (const [input, expected] of version1Baselines) {
   test(`version 1 remains byte-for-byte stable: ${input.first} / ${input.second}, seed ${input.seed}`,
+    () => assert.equal(jsonHash(generatePuzzle(input)), expected));
+}
+
+for (const [input, expected] of version2Baselines) {
+  test(`version 2 remains byte-for-byte stable: ${input.first} / ${input.second}, split ${input.splitSharedLetters}`,
     () => assert.equal(jsonHash(generatePuzzle(input)), expected));
 }
 
@@ -308,6 +432,128 @@ test('version 2 removes isolated notches and protrusions from the affected strai
   }
   assert.equal(currentDefects, 0, 'no isolated boundary defects in the affected letters');
   assert.ok(currentDefects < legacyDefects, 'the cleaned table improves on the legacy masks');
+});
+
+// Selected choices from the independent Python integer-DP reference.
+const reviewedLettering = [
+  {
+    "first": "LOVE",
+    "second": "HOME",
+    "area": 427,
+    "fontSizes": [
+      23,
+      22
+    ],
+    "variantPaths": {
+      "a": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "b": [
+        0,
+        0,
+        0,
+        1
+      ]
+    }
+  },
+  {
+    "first": "BENTON",
+    "second": "TRIPP",
+    "area": 590,
+    "fontSizes": [
+      21,
+      24
+    ],
+    "variantPaths": {
+      "a": [
+        0,
+        0,
+        3,
+        0,
+        0
+      ],
+      "b": [
+        1,
+        0,
+        1,
+        0
+      ]
+    }
+  },
+  {
+    "first": "LILY",
+    "second": "ELLA",
+    "area": 486,
+    "fontSizes": [
+      28,
+      26
+    ],
+    "variantPaths": {
+      "a": [
+        1,
+        0,
+        0
+      ],
+      "b": [
+        0,
+        0,
+        0
+      ]
+    }
+  }
+];
+
+for (const reference of reviewedLettering) {
+  test(`version 3 matches reviewed fixed-font choices: ${reference.first} / ${reference.second}`, () => {
+    const result = createWordTargets(reference.first, reference.second);
+    assert.equal(result.area, reference.area);
+    assert.deepEqual(result.metrics.fontSizes, reference.fontSizes);
+    assert.equal(result.a.cells.length, result.b.cells.length, 'whole-word areas match');
+    for (const [side, name] of [['a', reference.first], ['b', reference.second]]) {
+      const target = result[side];
+      assertFontTarget(target, name);
+      assert.ok(target.mask instanceof Uint8Array, `${name}: compact occupancy mask`);
+      assert.equal(target.mask.length, target.width * target.height);
+      const cells = new Set(target.cells.map(cellKey));
+      for (let index = 0; index < target.mask.length; index += 1) {
+        const key = cellKey([index % target.width, Math.floor(index / target.width)]);
+        assert.equal(target.mask[index], cells.has(key) ? 1 : 0, `${name}: mask matches cells at ${key}`);
+      }
+      const choices = new Map(target.glyphs.map(glyph => [glyph.character, glyph.variantIndex]));
+      const variantPath = [...choices].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+        .map(([, variantIndex]) => variantIndex);
+      assert.deepEqual(variantPath, reference.variantPaths[side]);
+      for (const glyph of target.glyphs) {
+        if ('ILE'.includes(glyph.character)) assertStraightLetter(glyph, `${name}: ${glyph.character}`);
+      }
+    }
+    if (reference.first === 'LOVE') {
+      assert.ok(new Set(result.a.glyphs.map(glyph => glyph.area)).size > 1,
+        'individual letters retain different natural areas');
+    }
+  });
+}
+
+test('version 3 lettering is deterministic for repeated letters and identical names', () => {
+  const first = createWordTargets('ANNA', 'ANNA');
+  const second = createWordTargets('ANNA', 'ANNA');
+  assert.deepEqual(first, second);
+  assertFontTarget(first.a, 'ANNA');
+  assertFontTarget(first.b, 'ANNA');
+  assert.deepEqual(first.a, first.b);
+});
+
+test('version 3 uses the font baseline without trimming Q descenders', () => {
+  const { a, b } = createWordTargets('QQ', 'OO');
+  assertFontTarget(a, 'QQ');
+  assertFontTarget(b, 'OO');
+  for (const glyph of a.glyphs) {
+    assert.ok(Math.max(...glyph.cells.map(([, y]) => y)) >= a.font.baseline,
+      'the Q tail extends below the declared font baseline');
+  }
 });
 
 const sharedLetterExamples = [
@@ -371,9 +617,38 @@ test('shared-letter splitting leaves geometry unchanged when names share no char
   assert.deepEqual(enabled.pieces, disabled.pieces);
 });
 
+for (const splitSharedLetters of [false, true]) {
+  test(`version 3 has valid proportional lettering with splitting ${splitSharedLetters}`, () => {
+    const input = { first: 'LILY', second: 'ELLA', seed: 7, version: 3, splitSharedLetters };
+    const updates = [];
+    assertPuzzle(generatePuzzle(input, { onProgress: update => updates.push(update) }), input);
+    assert.ok(updates.length > 0);
+    let previous = 0;
+    for (const update of updates) {
+      assert.ok(Number.isFinite(update.progress) && update.progress >= 0 && update.progress <= 1);
+      assert.ok(update.progress >= previous, 'letter preparation and piece search progress stay monotone');
+      previous = update.progress;
+    }
+    assert.equal(updates.at(-1).progress, 1);
+  });
+}
+
+test('version 3 matches unequal word lengths using fixed proportional glyphs', () => {
+  const input = { first: 'AL', second: 'LILY', seed: 11, version: 3, splitSharedLetters: true };
+  assertPuzzle(generatePuzzle(input), input);
+});
+
+test('version 3 uses the corrected I in BENTON / TRIPP', () => {
+  const input = { first: 'BENTON', second: 'TRIPP', seed: 1, version: 3, splitSharedLetters: true };
+  const puzzle = generatePuzzle(input);
+  assertPuzzle(puzzle, input);
+  const glyph = puzzle.targets.b.glyphs.find(({ character }) => character === 'I');
+  assertStraightLetter(glyph, 'TRIPP: I');
+});
+
 test('invalid version and split combinations fail explicitly', () => {
   const names = { first: 'AL', second: 'JO' };
-  for (const version of [0, 3, '2', null, NaN]) {
+  for (const version of [0, 4, '2', null, NaN]) {
     assert.throws(() => generatePuzzle({ ...names, version }), { code: 'INVALID_VERSION' });
   }
   for (const splitSharedLetters of [0, 1, 'true', null, {}]) {

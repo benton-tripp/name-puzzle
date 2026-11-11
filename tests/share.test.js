@@ -11,10 +11,12 @@ test('shared puzzle preserves canonical inputs and unsigned seed', () => {
 });
 
 test('new links preserve both shared-letter option states', () => {
-  for (const splitSharedLetters of [false, true]) {
-    const puzzle = { version: 2, first: 'LOVE', second: 'HOME', seed: 4294967295, splitSharedLetters };
-    assert.deepEqual(decodeShare(encodeShare(puzzle)), puzzle);
-    assert.equal(new URLSearchParams(encodeShare(puzzle).slice(1)).get('split'), splitSharedLetters ? '1' : '0');
+  for (const version of [2, 3]) {
+    for (const splitSharedLetters of [false, true]) {
+      const puzzle = { version, first: 'LOVE', second: 'HOME', seed: 4294967295, splitSharedLetters };
+      assert.deepEqual(decodeShare(encodeShare(puzzle)), puzzle);
+      assert.equal(new URLSearchParams(encodeShare(puzzle).slice(1)).get('split'), splitSharedLetters ? '1' : '0');
+    }
   }
 });
 
@@ -28,13 +30,13 @@ test('an empty fragment means no shared puzzle', () => {
 });
 
 test('malformed or unsupported links are rejected', () => {
-  for (const hash of ['#v=3&a=MAYA&b=NOAH&s=1', '#v=2&a=MAYA&b=NOAH&s=1', '#v=2&a=MAYA&b=NOAH&s=1&split=true', '#v=1&a=MAYA&b=NOAH&s=1&split=1', '#v=1&a=A&b=NOAH&s=1', '#v=1&a=MAYA&b=NOAH&s=-1', '#v=1&a=MAYA&b=NOAH&s=4294967296', '#v=1&a=MAYA&b=NOAH&s=1.5', '#v=1&a=MAYA&b=NOAH&s=NaN', '#v=1&a=%3Cscript%3E&b=NOAH&s=1', '#v=1&a=MAYA&b=NOAH', '#' + 'a'.repeat(201)]) {
+  for (const hash of ['#v=4&a=MAYA&b=NOAH&s=1', '#v=3&a=MAYA&b=NOAH&s=1', '#v=2&a=MAYA&b=NOAH&s=1', '#v=2&a=MAYA&b=NOAH&s=1&split=true', '#v=1&a=MAYA&b=NOAH&s=1&split=1', '#v=1&a=A&b=NOAH&s=1', '#v=1&a=MAYA&b=NOAH&s=-1', '#v=1&a=MAYA&b=NOAH&s=4294967296', '#v=1&a=MAYA&b=NOAH&s=1.5', '#v=1&a=MAYA&b=NOAH&s=NaN', '#v=1&a=%3Cscript%3E&b=NOAH&s=1', '#v=1&a=MAYA&b=NOAH', '#' + 'a'.repeat(201)]) {
     assert.throws(() => decodeShare(hash));
   }
 });
 
 test('invalid puzzle data cannot be encoded', () => {
-  for (const patch of [{first:'A'}, {second:'José'}, {seed:-1}, {seed:NaN}, {seed:4294967296}, {version:3}, {splitSharedLetters:true}, {version:2,splitSharedLetters:'true'}]) {
+  for (const patch of [{first:'A'}, {second:'José'}, {seed:-1}, {seed:NaN}, {seed:4294967296}, {version:4}, {splitSharedLetters:true}, {version:2,splitSharedLetters:'true'}]) {
     assert.throws(() => encodeShare({first:'MAYA',second:'NOAH',seed:1,...patch}));
   }
 });
