@@ -1,9 +1,9 @@
 {
   "name": "name-puzzle",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "A browser puzzle that rearranges one set of pieces into two names.",
+  "description": "Word Shapes rearranges one set of puzzle pieces into two words, names, or short phrases in the browser.",
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.js",

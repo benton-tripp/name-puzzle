@@ -648,7 +648,7 @@ test('version 3 uses the corrected I in BENTON / TRIPP', () => {
 
 test('invalid version and split combinations fail explicitly', () => {
   const names = { first: 'AL', second: 'JO' };
-  for (const version of [0, 4, '2', null, NaN]) {
+  for (const version of [0, 5, '2', null, NaN]) {
     assert.throws(() => generatePuzzle({ ...names, version }), { code: 'INVALID_VERSION' });
   }
   for (const splitSharedLetters of [0, 1, 'true', null, {}]) {
@@ -769,3 +769,62 @@ test('nonfinite and nonnumeric seeds fail explicitly', async (t) => {
     });
   }
 });
+
+// Complete version 3 outputs captured before adding phrase support.
+const version3Baselines = [
+  [
+    {
+      "first": "LOVE",
+      "second": "HOME",
+      "seed": 1,
+      "version": 3,
+      "splitSharedLetters": false
+    },
+    "114be7fdff70902916f08aa145e02fffe1f52c9801e91727bee497bd5de07882"
+  ],
+  [
+    {
+      "first": "LOVE",
+      "second": "HOME",
+      "seed": 1,
+      "version": 3,
+      "splitSharedLetters": true
+    },
+    "61d1a7fed7f945db12c395414f2c094d7542ca26e847212e7f97cebe36b2209e"
+  ],
+  [
+    {
+      "first": "BENTON",
+      "second": "TRIPP",
+      "seed": 1,
+      "version": 3,
+      "splitSharedLetters": false
+    },
+    "a4def38edf72df68643da83b9593880e48d38175e5520ee609104be0c8404cd7"
+  ],
+  [
+    {
+      "first": "LILY",
+      "second": "ELLA",
+      "seed": 7,
+      "version": 3,
+      "splitSharedLetters": true
+    },
+    "4d484a6d663a9a9ac1fa9bb7d34f1c9e972fbf91ec4d656aa48872d9cff443d6"
+  ],
+  [
+    {
+      "first": "ANNA",
+      "second": "NANA",
+      "seed": 17,
+      "version": 3,
+      "splitSharedLetters": true
+    },
+    "a5e76b0fc46b7c3d302798998f41b209b4a4dd4afdbbae023240e2c65e084b17"
+  ]
+];
+
+for (const [input, expected] of version3Baselines) {
+  test(`version 3 remains byte-for-byte stable: ${input.first} / ${input.second}, split ${input.splitSharedLetters}`,
+    () => assert.equal(jsonHash(generatePuzzle(input)), expected));
+}

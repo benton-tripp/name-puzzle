@@ -3,50 +3,51 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Create a puzzle whose pieces rearrange into two names. Generate and play entirely in your browser.">
+  <meta name="description" content="Create a shape puzzle that rearranges into two words, names, or short phrases. Generate and play entirely in your browser.">
   <meta name="theme-color" content="#f8f7f2">
-  <title>Name Puzzle</title>
+  <title>Word Shapes</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./src/app.js"></script>
 </head>
 <body>
-  <a class="skip-link" href="#name-form">Skip to name entry</a>
+  <a class="skip-link" href="#name-form">Skip to word entry</a>
   <main class="app">
     <header class="page-header">
       <div class="brand">
         <img src="./favicon.svg" alt="" width="34" height="34">
-        <h1>Name Puzzle</h1>
+        <h1>Word Shapes</h1>
       </div>
       <span class="prototype-label">Prototype</span>
     </header>
 
-    <p class="intro">One set of pieces. Two names.</p>
+    <p class="intro">One set of pieces. Two words.</p>
+    <p class="intro-detail">Make a puzzle from words, names, or short phrases.</p>
 
     <form id="name-form" class="name-form" novalidate>
       <div class="field">
-        <label for="first-name">First name</label>
+        <label for="first-name">First word or phrase</label>
         <input id="first-name" name="first" value="LOVE" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="name-help form-error" required>
       </div>
       <div class="field">
-        <label for="second-name">Second name</label>
+        <label for="second-name">Second word or phrase</label>
         <input id="second-name" name="second" value="HOME" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="name-help form-error" required>
       </div>
       <button id="generate" class="button primary generate-button" type="submit">Make puzzle</button>
       <button id="cancel" class="button secondary cancel-button" type="button" hidden>Cancel</button>
-      <p id="name-help" class="form-help">Use 2 to 10 letters per name. Accents are simplified; spaces, hyphens, and apostrophes are omitted.</p>
+      <p id="name-help" class="form-help">Use 2 to 12 characters per input, excluding spaces. Letters, numbers, hyphens (-), plus signs (+), and ampersands (&amp;) are supported. Accents are simplified.</p>
       <div class="generation-option">
-        <label class="option-label" for="split-shared-letters"><input id="split-shared-letters" type="checkbox" aria-describedby="split-help">Split shared letters</label>
-        <p id="split-help" class="option-help">Use at least two pieces for each letter that appears in both names. Choose Make puzzle to apply.</p>
+        <label class="option-label" for="split-shared-letters"><input id="split-shared-letters" type="checkbox" aria-describedby="split-help">Split shared letters and numbers</label>
+        <p id="split-help" class="option-help">Use at least two pieces for each letter or number found in both inputs. Choose Make puzzle to apply.</p>
       </div>
       <p id="form-error" class="error" role="alert" hidden></p>
     </form>
 
-    <div class="example-row" aria-label="Example names">
+    <div class="example-row" aria-label="Example pairs">
       <span>Try a pair</span>
-      <button class="example" type="button" data-first="MAYA" data-second="NOAH">Maya &amp; Noah</button>
-      <button class="example" type="button" data-first="LUCA" data-second="ELIO">Luca &amp; Elio</button>
-      <button class="example" type="button" data-first="ALEX" data-second="SAM">Alex &amp; Sam</button>
+      <button class="example" type="button" data-first="SUN" data-second="MOON">Sun / Moon</button>
+      <button class="example" type="button" data-first="LOVE YOU" data-second="THANK YOU">Love You / Thank You</button>
+      <button class="example" type="button" data-first="BENTON" data-second="TRIPP">Benton / Tripp</button>
     </div>
 
     <section class="puzzle-section" aria-label="Generated puzzle" aria-busy="true">
@@ -61,11 +62,52 @@
         </div>
         <span id="piece-count" class="small-label"></span>
       </div>
-      <p id="target-help" class="target-help" hidden>Choose a name above to change the target. Changing targets starts a new round.</p>
+      <p id="target-help" class="target-help" hidden>Choose either word or phrase above to change the target. Changing targets starts a new round.</p>
       <p id="legacy-note" class="target-help" hidden>This link uses earlier letter shapes. Choose Make puzzle to use the updated shapes.</p>
 
-      <div id="puzzle-board" class="puzzle-board" aria-label="Puzzle board">
-        <div id="board-placeholder" class="board-placeholder">Preparing the pieces…</div>
+      <div class="display-controls">
+        <details class="appearance-panel">
+          <summary>Appearance</summary>
+          <div class="appearance-options">
+            <div class="setting-field">
+              <label for="piece-palette">Piece colors</label>
+              <select id="piece-palette">
+                <option value="classic">Classic</option>
+                <option value="ocean">Ocean</option>
+                <option value="sunset">Sunset</option>
+                <option value="solid">Solid color</option>
+              </select>
+            </div>
+            <div id="solid-color-field" class="setting-field" hidden>
+              <label for="piece-color">Solid color</label>
+              <input id="piece-color" type="color" value="#639182">
+            </div>
+            <div class="setting-field">
+              <label for="site-theme">Site theme</label>
+              <select id="site-theme">
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </div>
+          </div>
+          <p class="setting-help">Colors are included in copied links. Theme is saved on this device.</p>
+        </details>
+        <div class="setting-field zoom-control">
+          <label for="board-zoom">Board size</label>
+          <select id="board-zoom" aria-describedby="zoom-help">
+            <option value="1">Fit</option>
+            <option value="1.5">150%</option>
+            <option value="2">200%</option>
+            <option value="3">300%</option>
+          </select>
+        </div>
+      </div>
+      <p id="zoom-help" class="setting-help" hidden>Scroll or swipe empty space to move around the enlarged board.</p>
+      <div id="board-viewport" class="board-viewport" tabindex="0" role="region" aria-label="Puzzle board viewport">
+        <div id="puzzle-board" class="puzzle-board" aria-label="Puzzle board">
+          <div id="board-placeholder" class="board-placeholder">Preparing the pieces…</div>
+        </div>
       </div>
 
       <div class="board-footer">
@@ -101,20 +143,21 @@
           <div><dt>Time on this device</dt><dd id="stat-time">Waiting</dd></div>
           <div><dt>Pieces</dt><dd id="stat-pieces">Waiting</dd></div>
           <div><dt>Single-square pieces</dt><dd id="stat-singletons">Waiting</dd></div>
-          <div><dt>Squares in each name</dt><dd id="stat-cells">Waiting</dd></div>
+          <div><dt>Squares in each arrangement</dt><dd id="stat-cells">Waiting</dd></div>
           <div><dt>Seed</dt><dd id="stat-seed">Waiting</dd></div>
         </dl>
         <p>This generator uses a square grid. Some pairs produce uneven lettering or many small pieces. The piece count and timing help compare results.</p>
       </details>
       <details>
         <summary>How It Works</summary>
-        <p>Both names are drawn with the same total area. The generator finds connected pieces that fit in each name, allowing them to move and rotate. Every square is used once in each arrangement.</p>
-        <p>The puzzle is generated in your browser. Shared links contain the names and a seed so another browser can recreate the same pieces.</p>
+        <p>Both inputs are drawn with the same total area. The generator finds connected pieces that fit in each arrangement, allowing them to move and rotate. Every square is used once in each arrangement.</p>
+        <p>Spaces are preserved. Longer phrases can wrap at a word boundary. Use Board size to enlarge a puzzle without changing its pieces.</p>
+        <p>The puzzle is generated in your browser. Shared links contain the entered text, colors, and a seed so another browser can recreate the same puzzle.</p>
       </details>
     </div>
 
     <footer class="page-footer">
-      <span>Names stay in your browser unless you share the link.</span>
+      <span>Your text stays in your browser unless you share the link.</span>
       <a href="https://github.com/benton-tripp/name-puzzle" target="_blank" rel="noopener noreferrer">Source code</a>
     </footer>
     <noscript><p class="error">This puzzle needs JavaScript to generate and move the pieces.</p></noscript>

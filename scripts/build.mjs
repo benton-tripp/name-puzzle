@@ -12,4 +12,4 @@ for (const entry of ['index.html', 'styles.css', 'favicon.svg', 'src']) {
 await writeFile(path.join(output, '.nojekyll'), '');
 const packageInfo = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 await writeFile(path.join(output, 'version.json'), JSON.stringify({version:packageInfo.version,commit:process.env.GITHUB_SHA || 'local'}) + '\n');
-console.log(`Built Name Puzzle ${packageInfo.version} in dist/`);
+console.log(`Built Word Shapes ${packageInfo.version} in dist/`);

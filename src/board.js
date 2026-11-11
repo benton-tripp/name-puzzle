@@ -87,9 +87,11 @@ export class PuzzleBoard {
     this._slots = [];
     this._selectedId = null;
     this._drag = null;
+    this._scrollFrame = null;
     this._animation = null;
     this._resizeFrame = null;
     this._destroyed = false;
+    this._zoom = 1;
     this._width = container.getBoundingClientRect().width || 640;
     this._pixelsPerUnit = 20;
     this._view = { x: 0, y: 0, width: 32, height: 12 };
@@ -98,10 +100,10 @@ export class PuzzleBoard {
     const descriptionId = `puzzle-board-description-${++boardSequence}`;
     this.svg = element('svg', {
       class: 'puzzle-svg', width: '100%', role: 'group',
-      'aria-label': 'Name puzzle', 'aria-describedby': descriptionId,
+      'aria-label': 'Word shape puzzle', 'aria-describedby': descriptionId,
       preserveAspectRatio: 'xMidYMid meet', hidden: '',
     });
-    Object.assign(this.svg.style, { display: 'block', width: '100%', height: 'auto', userSelect: 'none', touchAction: 'pan-y pinch-zoom' });
+    Object.assign(this.svg.style, { display: 'block', width: '100%', height: 'auto', userSelect: 'none', touchAction: 'pan-x pan-y pinch-zoom' });
     this.svg.style.webkitUserSelect = 'none';
     this._description = element('desc', { id: descriptionId });
     this._targetGroup = element('g', { class: 'puzzle-target', 'aria-hidden': 'true', 'pointer-events': 'none' });
@@ -148,6 +150,15 @@ export class PuzzleBoard {
     return this.mode === 'play' && this._pieces.length > 0 && this.placedCount === this._pieces.length;
   }
 
+  setZoom(zoom) {
+    if (this._destroyed || ![1, 1.5, 2, 3].includes(zoom)) return;
+    this._cancelDrag();
+    this._pixelsPerUnit *= zoom / this._zoom;
+    this._zoom = zoom;
+    this.container.style.width = `${zoom * 100}%`;
+    this._refresh();
+  }
+
   load(puzzle) {
     if (this._destroyed) return;
     if (!puzzle?.targets || !Array.isArray(puzzle.pieces) || !puzzle.pieces.length) throw new Error('The puzzle contains no pieces.');
@@ -172,7 +183,7 @@ export class PuzzleBoard {
     this._pieces = puzzle.pieces.map((source, index) => this._makePiece(source, index));
     this.container.replaceChildren(this.svg);
     this.svg.removeAttribute('hidden');
-    this._width = this.container.getBoundingClientRect().width || this._width;
+    this._width = this.container.getBoundingClientRect().width / this._zoom || this._width;
     this.showArrangement('a', { animate: false });
   }
 
@@ -296,7 +307,7 @@ export class PuzzleBoard {
   }
 
   _checkTarget(target) {
-    if (target !== 'a' && target !== 'b') throw new Error('Choose the first or second name.');
+    if (target !== 'a' && target !== 'b') throw new Error('Choose the first or second arrangement.');
   }
 
   _makePiece(source, index) {
@@ -306,13 +317,13 @@ export class PuzzleBoard {
     const group = element('g', { class: 'puzzle-piece', 'data-piece-id': id, 'data-size': cells.length, tabindex: '-1' });
     Object.assign(group.style, { outline: 'none', touchAction: 'none' });
     const selection = element('path', {
-      class: 'puzzle-piece-selection', d: path, fill: 'none', stroke: 'var(--ink, #253b33)',
+      class: 'puzzle-piece-selection', d: path, fill: 'none', stroke: 'var(--piece-selection, #224c9a)',
       'stroke-width': '3', 'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke',
       'pointer-events': 'none', opacity: '0',
     });
     const shape = element('path', {
       class: 'puzzle-piece-shape', d: path, fill: `var(--piece-${index % 8 + 1}, ${FALLBACK_COLORS[index % 8]})`,
-      'fill-rule': 'evenodd', stroke: 'rgba(37, 59, 51, 0.6)', 'stroke-width': '1',
+      'fill-rule': 'evenodd', stroke: 'var(--piece-stroke, rgba(25, 42, 34, 0.7))', 'stroke-width': '1',
       'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'visiblePainted',
     });
     shape.style.touchAction = 'none';
@@ -320,7 +331,7 @@ export class PuzzleBoard {
     const anchor = [...cells].sort((a, b) => (a[0] - average[0]) ** 2 + (a[1] - average[1]) ** 2 - (b[0] - average[0]) ** 2 - (b[1] - average[1]) ** 2)[0];
     const label = element('text', {
       x: anchor[0] + 0.5, y: anchor[1] + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'central',
-      fill: '#172c23', 'font-family': 'inherit', 'font-weight': '650', 'pointer-events': 'none', 'aria-hidden': 'true',
+      fill: 'var(--piece-label, #172c23)', 'font-family': 'inherit', 'font-weight': '650', 'pointer-events': 'none', 'aria-hidden': 'true',
     });
     label.textContent = String(index + 1);
     group.append(selection, shape, label);
@@ -351,11 +362,11 @@ export class PuzzleBoard {
     })));
     this._targetGroup.style.display = this.mode === 'play' ? '' : 'none';
     this._labels.style.display = this.mode === 'play' ? '' : 'none';
-    const name = (this.target === 'a' ? this._puzzle.first : this._puzzle.second) || (this.target === 'a' ? 'the first name' : 'the second name');
+    const name = (this.target === 'a' ? this._puzzle.first : this._puzzle.second) || (this.target === 'a' ? 'the first arrangement' : 'the second arrangement');
     this.svg.setAttribute('aria-label', this.mode === 'play' ? `Arrange ${this._pieces.length} pieces to make ${name}.` : `Puzzle pieces arranged as ${name}.`);
     this._description.textContent = this.mode === 'play'
       ? 'Use Tab to select a piece. Arrow keys move one square. Shift and an arrow move five squares. R rotates clockwise. Shift and R rotate counterclockwise. Pieces lock when they fit an outlined position.'
-      : 'The same pieces form both names. Use the arrangement controls to switch names, or choose Play.';
+      : 'The same pieces form both words or phrases. Use the arrangement controls to switch between them, or choose Play.';
   }
 
   _layout(play, minimumInnerWidth = 0, pass = 0) {
@@ -410,7 +421,7 @@ export class PuzzleBoard {
   }
 
   _decorateLayout(layout) {
-    this._pixelsPerUnit = layout.scale;
+    this._pixelsPerUnit = layout.scale * this._zoom;
     if (this.mode !== 'play') return;
     const target = this._puzzle.targets[this.target];
     const fontSize = 11 / layout.scale;
@@ -536,6 +547,21 @@ export class PuzzleBoard {
     return point.matrixTransform(matrix.inverse());
   }
 
+  _revealPiece(piece) {
+    const viewport = this.container.parentElement;
+    if (!viewport?.classList.contains('is-zoomed')) return;
+    const bounds = viewport.getBoundingClientRect();
+    const item = piece.group.getBoundingClientRect();
+    const offset = (start, end, visibleStart, visibleEnd) => {
+      if (end - start > visibleEnd - visibleStart - 24) return (start + end - visibleStart - visibleEnd) / 2;
+      if (start < visibleStart + 12) return start - visibleStart - 12;
+      if (end > visibleEnd - 12) return end - visibleEnd + 12;
+      return 0;
+    };
+    viewport.scrollLeft += offset(item.left, item.right, bounds.left, bounds.right);
+    viewport.scrollTop += offset(item.top, item.bottom, bounds.top, bounds.bottom);
+  }
+
   _pointerDown(event, piece) {
     if (this.mode !== 'play' || piece.placed || this._animation || this._drag || event.button !== 0) return;
     const point = this._point(event);
@@ -543,7 +569,7 @@ export class PuzzleBoard {
     if (event.cancelable) event.preventDefault();
     this._select(piece.id, true);
     this._pieceGroup.append(piece.group);
-    this._drag = { id: piece.id, pointerId: event.pointerId, offsetX: point.x - piece.pose.x, offsetY: point.y - piece.pose.y, clientX: event.clientX, clientY: event.clientY, start: copyPose(piece.pose), atHome: piece.atHome, moved: false };
+    this._drag = { id: piece.id, pointerId: event.pointerId, offsetX: point.x - piece.pose.x, offsetY: point.y - piece.pose.y, clientX: event.clientX, clientY: event.clientY, lastX: event.clientX, lastY: event.clientY, start: copyPose(piece.pose), atHome: piece.atHome, moved: false };
     try { this.svg.setPointerCapture(event.pointerId); } catch { /* Capture can end when the pointer is released. */ }
     this._stylePiece(piece);
   }
@@ -552,6 +578,8 @@ export class PuzzleBoard {
     const drag = this._drag;
     if (!drag || event.pointerId !== drag.pointerId) return;
     if (event.cancelable) event.preventDefault();
+    drag.lastX = event.clientX;
+    drag.lastY = event.clientY;
     if (!drag.moved && Math.hypot(event.clientX - drag.clientX, event.clientY - drag.clientY) < 3) return;
     const point = this._point(event);
     if (!point) return;
@@ -562,6 +590,37 @@ export class PuzzleBoard {
     piece.pose.y = point.y - drag.offsetY;
     this._clamp(piece);
     this._renderPiece(piece);
+    this._scrollDuringDrag();
+  }
+
+  _scrollDuringDrag() {
+    if (this._scrollFrame !== null || !this._drag?.moved) return;
+    const viewport = this.container.parentElement;
+    if (!viewport?.classList.contains('is-zoomed')) return;
+    const tick = () => {
+      this._scrollFrame = null;
+      const drag = this._drag;
+      if (!drag) return;
+      const bounds = viewport.getBoundingClientRect();
+      const speed = (position, start, end) => position < start + 32
+        ? -Math.min(12, (start + 32 - position) / 2)
+        : position > end - 32 ? Math.min(12, (position - end + 32) / 2) : 0;
+      const beforeX = viewport.scrollLeft;
+      const beforeY = viewport.scrollTop;
+      viewport.scrollLeft += speed(drag.lastX, bounds.left, bounds.right);
+      viewport.scrollTop += speed(drag.lastY, bounds.top, bounds.bottom);
+      if (viewport.scrollLeft === beforeX && viewport.scrollTop === beforeY) return;
+      const point = this._point({ clientX: drag.lastX, clientY: drag.lastY });
+      const piece = this._byId.get(drag.id);
+      if (point && piece) {
+        piece.pose.x = point.x - drag.offsetX;
+        piece.pose.y = point.y - drag.offsetY;
+        this._clamp(piece);
+        this._renderPiece(piece);
+      }
+      this._scrollFrame = requestAnimationFrame(tick);
+    };
+    this._scrollFrame = requestAnimationFrame(tick);
   }
 
   _pointerEnd(event, canceled) {
@@ -569,6 +628,8 @@ export class PuzzleBoard {
     const drag = this._drag;
     const piece = this._byId.get(drag.id);
     this._drag = null;
+    if (this._scrollFrame !== null) cancelAnimationFrame(this._scrollFrame);
+    this._scrollFrame = null;
     try { if (this.svg.hasPointerCapture(drag.pointerId)) this.svg.releasePointerCapture(drag.pointerId); } catch { /* The browser may already have released capture. */ }
     if (canceled) {
       piece.pose = drag.start;
@@ -656,13 +717,16 @@ export class PuzzleBoard {
     }
     if (piece.placed) {
       const next = this._pieces.find(item => !item.placed);
-      if (next) this._select(next.id, true);
-    }
+      if (next) {
+        this._select(next.id, true);
+        this._revealPiece(next);
+      }
+    } else this._revealPiece(piece);
   }
 
   _resize() {
     if (this._destroyed || this._drag) return;
-    const width = this.container.getBoundingClientRect().width;
+    const width = this.container.getBoundingClientRect().width / this._zoom;
     if (!width || Math.abs(width - this._width) < 1) return;
     this._width = width;
     if (!this._puzzle) return;

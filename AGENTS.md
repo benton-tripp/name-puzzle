@@ -2,7 +2,7 @@
 
 ## Scope
 
-Name Puzzle is a static browser prototype hosted on GitHub Pages. Preserve that architecture unless the owner requests a change. Generation belongs in the Web Worker. Do not add a server, paid API, account system, analytics, or scheduled workflow as part of routine maintenance.
+Word Shapes is a static browser prototype for words, names, and short phrases, hosted on GitHub Pages during development and testing. Preserve that architecture unless the owner requests a change. Generation belongs in the Web Worker. Do not add a server, paid API, account system, analytics, or scheduled workflow as part of routine maintenance.
 
 ## Writing
 

@@ -1,5 +1,6 @@
 import { PuzzleBoard } from './board.js';
 import { encodeShare, decodeShare } from './share.js';
+import { setupAppearance } from './appearance.js';
 
 const get = (id) => document.getElementById(id);
 const form = get('name-form');
@@ -17,6 +18,23 @@ let generation = 0;
 let busy = false;
 
 const board = new PuzzleBoard(get('puzzle-board'), { onChange: handleBoardChange });
+const appearance = setupAppearance({ onChange: updateShareFragment });
+
+function shareData() {
+  return { ...currentPuzzle, appearance: appearance.getAppearance() };
+}
+
+function updateShareFragment() {
+  if (!currentPuzzle || busy) return;
+  const fragment = encodeShare(shareData());
+  history.replaceState(null, '', `${location.pathname}${location.search}${fragment}`);
+  get('share-status').textContent = '';
+  get('share-fallback').hidden = true;
+}
+
+function applySharedAppearance(shared) {
+  if (shared?.appearance) appearance.setAppearance(shared.appearance);
+}
 
 function handleBoardChange(state) {
   boardState = state;
@@ -25,7 +43,7 @@ function handleBoardChange(state) {
   const targetName = state.target === 'a' ? currentPuzzle.first : currentPuzzle.second;
   const otherName = state.target === 'a' ? currentPuzzle.second : currentPuzzle.first;
   get('arrangement-label').textContent = playing ? 'Target' : 'Arrangement';
-  get('arrangements').setAttribute('aria-label', playing ? 'Choose target name' : 'Show an arrangement');
+  get('arrangements').setAttribute('aria-label', playing ? 'Choose target word or phrase' : 'Show an arrangement');
   get('target-help').hidden = !playing;
   get('show-first').setAttribute('aria-pressed', String(state.target === 'a'));
   get('show-second').setAttribute('aria-pressed', String(state.target === 'b'));
@@ -89,7 +107,7 @@ function nextSeed() {
   return Date.now() >>> 0;
 }
 
-function generate({ first = firstInput.value, second = secondInput.value, seed = nextSeed(), splitSharedLetters = splitInput.checked, version = 3 } = {}) {
+function generate({ first = firstInput.value, second = secondInput.value, seed = nextSeed(), splitSharedLetters = splitInput.checked, version = 4 } = {}) {
   stopWorker();
   const job = ++generation;
   clearError();
@@ -119,7 +137,7 @@ function generate({ first = firstInput.value, second = secondInput.value, seed =
     if (job !== generation) return;
     stopWorker();
     setBusy(false);
-    showError('Generation took longer than 20 seconds and was stopped. Try a shorter pair of names.');
+    showError('Generation took longer than 20 seconds and was stopped. Try shorter words or phrases.');
     if (!currentPuzzle) get('board-status').textContent = 'No puzzle generated.';
   }, 20000);
   worker.addEventListener('message', ({ data }) => {
@@ -128,8 +146,8 @@ function generate({ first = firstInput.value, second = secondInput.value, seed =
     stopWorker();
     if (data.type === 'error') {
       setBusy(false);
-      showError(data.message, data.code === 'INVALID_NAME');
-      if (!currentPuzzle) get('board-status').textContent = 'Enter a valid pair of names.';
+      showError(data.message, ['INVALID_NAME', 'INVALID_TEXT'].includes(data.code));
+      if (!currentPuzzle) get('board-status').textContent = 'Enter valid words or phrases.';
       return;
     }
     try {
@@ -137,7 +155,7 @@ function generate({ first = firstInput.value, second = secondInput.value, seed =
       firstInput.value = currentPuzzle.first;
       secondInput.value = currentPuzzle.second;
       splitInput.checked = currentPuzzle.splitSharedLetters === true;
-      get('legacy-note').hidden = currentPuzzle.version >= 3;
+      get('legacy-note').hidden = currentPuzzle.version >= 4;
       get('show-first').textContent = currentPuzzle.first;
       get('show-second').textContent = currentPuzzle.second;
       get('piece-count').textContent = `${currentPuzzle.pieces.length} pieces`;
@@ -147,9 +165,8 @@ function generate({ first = firstInput.value, second = secondInput.value, seed =
       get('stat-cells').textContent = String(currentPuzzle.targets.a.cells.length);
       get('stat-seed').textContent = String(currentPuzzle.seed);
       board.load(currentPuzzle);
-      const fragment = encodeShare(currentPuzzle);
-      history.replaceState(null, '', `${location.pathname}${location.search}${fragment}`);
       setBusy(false);
+      updateShareFragment();
     } catch (error) {
       setBusy(false);
       showError(error.message || 'The generated puzzle could not be displayed.');
@@ -186,13 +203,13 @@ document.querySelectorAll('.example').forEach((button) => {
     generate({ seed: 1 });
   });
 });
-function chooseName(target) {
+function chooseTarget(target) {
   if (boardState.mode === 'play') {
     if (target !== boardState.target) board.scatter(target);
   } else board.showArrangement(target);
 }
-get('show-first').addEventListener('click', () => chooseName('a'));
-get('show-second').addEventListener('click', () => chooseName('b'));
+get('show-first').addEventListener('click', () => chooseTarget('a'));
+get('show-second').addEventListener('click', () => chooseTarget('b'));
 get('rearrange').addEventListener('click', () => {
   board.showArrangement(boardState.mode === 'play' ? boardState.target : boardState.target === 'a' ? 'b' : 'a');
 });
@@ -207,18 +224,18 @@ get('share').addEventListener('click', async () => {
   if (!currentPuzzle) return;
   const url = new URL(location.href);
   url.search = '';
-  url.hash = encodeShare(currentPuzzle).slice(1);
+  url.hash = encodeShare(shareData()).slice(1);
   try {
     if (!navigator.clipboard) throw new Error('Clipboard unavailable');
     await navigator.clipboard.writeText(url.href);
-    get('share-status').textContent = 'Link copied. It includes both names.';
+    get('share-status').textContent = 'Link copied. It includes both inputs and the piece colors.';
     get('share-fallback').hidden = true;
   } catch {
     get('share-url').value = url.href;
     get('share-fallback').hidden = false;
     get('share-url').focus();
     get('share-url').select();
-    get('share-status').textContent = 'Copy the link above. It includes both names.';
+    get('share-status').textContent = 'Copy the link above. It includes both inputs and the piece colors.';
   }
 });
 window.addEventListener('pagehide', () => {
@@ -231,7 +248,10 @@ window.addEventListener('pagehide', () => {
 window.addEventListener('hashchange', () => {
   try {
     const shared = decodeShare(location.hash);
-    if (shared) generate(shared);
+    if (shared) {
+      applySharedAppearance(shared);
+      generate(shared);
+    }
   } catch (error) { showError(error.message); }
 });
 
@@ -240,10 +260,27 @@ try {
   if (shared) {
     firstInput.value = shared.first;
     secondInput.value = shared.second;
+    applySharedAppearance(shared);
   }
   generate(shared || { seed: 1 });
 } catch (error) {
   setBusy(false);
-  get('board-status').textContent = 'Enter the names to make a puzzle.';
+  get('board-status').textContent = 'Enter words or phrases to make a puzzle.';
   showError(error.message);
 }
+
+get('board-zoom').addEventListener('change', () => {
+  const zoom = Number(get('board-zoom').value);
+  if (![1, 1.5, 2, 3].includes(zoom)) return;
+  const viewport = get('board-viewport');
+  const wasZoomed = viewport.classList.contains('is-zoomed');
+  const centerX = (viewport.scrollLeft + viewport.clientWidth / 2) / Math.max(viewport.scrollWidth, 1);
+  const centerY = wasZoomed ? (viewport.scrollTop + viewport.clientHeight / 2) / Math.max(viewport.scrollHeight, 1) : 0;
+  viewport.classList.toggle('is-zoomed', zoom > 1);
+  board.setZoom(zoom);
+  get('zoom-help').hidden = zoom === 1;
+  requestAnimationFrame(() => {
+    viewport.scrollLeft = Math.max(0, centerX * viewport.scrollWidth - viewport.clientWidth / 2);
+    viewport.scrollTop = Math.max(0, centerY * viewport.scrollHeight - viewport.clientHeight / 2);
+  });
+});

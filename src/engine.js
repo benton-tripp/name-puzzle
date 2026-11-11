@@ -1,6 +1,8 @@
 import { GLYPHS } from './glyphs.js';
 import { GLYPHS_V2 } from './glyphs-v2.js';
 import { createWordTargets } from './lettering.js';
+import { createTextTargets } from './lettering-v4.js';
+import { normalizeText } from './text.js';
 
 const VERSION = 1;
 const PAIR_LIMIT = 70000000;
@@ -434,8 +436,9 @@ function connectedSplit(piece, required) {
   });
 }
 
-function splitSharedGlyphs(original, a, b, first, second) {
-  const shared = new Set([...first].filter(character => second.includes(character)));
+function splitSharedGlyphs(original, a, b, first, second, alphanumericOnly = false) {
+  const shared = new Set([...first].filter(character => second.includes(character)
+    && (!alphanumericOnly || /[A-Z0-9]/.test(character))));
   const glyphs = [['a', a], ['b', b]].flatMap(([side, target]) => target.glyphs
     .filter(glyph => shared.has(glyph.character)).map(glyph => ({ side, target, glyph })));
   let pieces = original;
@@ -500,17 +503,18 @@ function validatePuzzle(puzzle) {
 }
 
 function generateCandidate({ first, second, seed = 1, splitSharedLetters = false, version = VERSION }, { onProgress, config, targets }) {
-  first = normalizeName(first);
-  second = normalizeName(second);
+  const normalize = version === 4 ? normalizeText : normalizeName;
+  first = normalize(first);
+  second = normalize(second);
   if (typeof seed !== 'number' || !Number.isFinite(seed)) throw failure('Use a finite numeric seed.', 'INVALID_SEED');
   seed = seed >>> 0;
   const notify = (stage, progress) => { if (typeof onProgress === 'function') onProgress({ stage, progress }); };
   notify('Preparing letters', 0);
   const common = first.length * second.length / gcd(first.length, second.length);
-  const area = version === 3 ? targets.area : common * Math.ceil(105 * Math.max(first.length, second.length) / common);
+  const area = version >= 3 ? targets.area : common * Math.ceil(105 * Math.max(first.length, second.length) / common);
   const glyphTable = version === 2 ? GLYPHS_V2 : GLYPHS;
-  const a = version === 3 ? targets.a : makeTarget(first, area / first.length, glyphTable, version >= 2);
-  const b = version === 3 ? targets.b : makeTarget(second, area / second.length, glyphTable, version >= 2);
+  const a = version >= 3 ? targets.a : makeTarget(first, area / first.length, glyphTable, version >= 2);
+  const b = version >= 3 ? targets.b : makeTarget(second, area / second.length, glyphTable, version >= 2);
   if (a.cells.length !== b.cells.length) throw failure('The target areas differ.', 'INVALID_GEOMETRY');
   const aMask = a.mask.slice();
   const bMask = b.mask.slice();
@@ -582,7 +586,7 @@ function generateCandidate({ first, second, seed = 1, splitSharedLetters = false
   let sharedLetterSplits = 0;
   if (splitSharedLetters) {
     notify('Splitting shared letters', 0.94);
-    const split = splitSharedGlyphs(pieces, a, b, first, second);
+    const split = splitSharedGlyphs(pieces, a, b, first, second, version === 4);
     pieces = split.pieces;
     sharedLetterSplits = split.splits;
   }
@@ -599,16 +603,21 @@ function generateCandidate({ first, second, seed = 1, splitSharedLetters = false
     },
   };
   if (version >= 2) {
-    const shared = new Set([...first].filter(character => second.includes(character)));
+    const shared = new Set([...first].filter(character => second.includes(character)
+      && (version !== 4 || /[A-Z0-9]/.test(character))));
     puzzle.splitSharedLetters = splitSharedLetters;
     puzzle.targets.a.glyphs = a.glyphs;
     puzzle.targets.b.glyphs = b.glyphs;
     puzzle.metrics.sharedLetterSplits = sharedLetterSplits;
     puzzle.metrics.sharedGlyphOccurrences = [...a.glyphs, ...b.glyphs].filter(glyph => shared.has(glyph.character)).length;
   }
-  if (version === 3) {
+  if (version >= 3) {
     puzzle.targets.a.font = a.font;
     puzzle.targets.b.font = b.font;
+  }
+  if (version === 4) {
+    puzzle.targets.a.lines = a.lines;
+    puzzle.targets.b.lines = b.lines;
   }
   notify('Checking the result', 0.95);
   validatePuzzle(puzzle);
@@ -617,10 +626,11 @@ function generateCandidate({ first, second, seed = 1, splitSharedLetters = false
 }
 
 export function generatePuzzle({ first, second, seed = 1, splitSharedLetters = false, version = splitSharedLetters ? 2 : VERSION } = {}, { onProgress } = {}) {
-  first = normalizeName(first);
-  second = normalizeName(second);
+  const normalize = version === 4 ? normalizeText : normalizeName;
+  first = normalize(first);
+  second = normalize(second);
   if (typeof splitSharedLetters !== 'boolean') throw failure('The shared-letter option must be true or false.', 'INVALID_OPTION');
-  if (![1, 2, 3].includes(version)) throw failure('Use generator version 1, 2, or 3.', 'INVALID_VERSION');
+  if (![1, 2, 3, 4].includes(version)) throw failure('Use generator version 1, 2, 3, or 4.', 'INVALID_VERSION');
   if (version === 1 && splitSharedLetters) throw failure('Splitting shared letters requires generator version 2 or later.', 'INVALID_OPTION');
   if (typeof seed !== 'number' || !Number.isFinite(seed)) throw failure('Use a finite numeric seed.', 'INVALID_SEED');
   seed = seed >>> 0;
@@ -628,7 +638,7 @@ export function generatePuzzle({ first, second, seed = 1, splitSharedLetters = f
   let bestScore = Infinity;
   let totalPairComparisons = 0;
   const searchedPieceCounts = [];
-  const targets = version === 3 ? createWordTargets(first, second, {
+  const targets = version >= 3 ? (version === 4 ? createTextTargets : createWordTargets)(first, second, {
     onProgress: update => {
       if (typeof onProgress === 'function') onProgress({ ...update, progress: 0.05 * update.progress });
     },
@@ -641,7 +651,7 @@ export function generatePuzzle({ first, second, seed = 1, splitSharedLetters = f
       onProgress: update => {
         if (typeof onProgress === 'function') onProgress({
           stage: pass ? `Refining pieces (${pass + 1} of ${SEARCH_PASSES.length})` : update.stage,
-          progress: version === 3
+          progress: version >= 3
             ? 0.05 + 0.95 * (pass + update.progress) / SEARCH_PASSES.length
             : (pass + update.progress) / SEARCH_PASSES.length,
         });
