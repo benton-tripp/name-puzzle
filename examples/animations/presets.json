@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "presets": {
+    "birthday": {
+      "label": "Happy Birthday",
+      "first": "HAPPY",
+      "second": "BIRTHDAY",
+      "seed": 19,
+      "theme": "birthday"
+    },
+    "holidays": {
+      "label": "Happy Holidays",
+      "first": "HAPPY",
+      "second": "HOLIDAYS",
+      "seed": 7,
+      "theme": "holidays"
+    },
+    "new-year": {
+      "label": "Happy New Year",
+      "first": "HAPPY",
+      "second": "NEW YEAR",
+      "seed": 19,
+      "theme": "new-year"
+    }
+  }
+}

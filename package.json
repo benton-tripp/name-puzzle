@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.js",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "export:animation": "node scripts/export-animation.mjs"
   },
   "engines": { "node": ">=22" }
 }
