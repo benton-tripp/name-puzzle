@@ -107,7 +107,7 @@ export function configFromFlags(values, presets) {
   return validateConfig({
     puzzle: { version: 4, first: values.first ?? selected?.first,
       second: values.second ?? selected?.second, seed: values.seed ?? selected?.seed ?? 1,
-      splitSharedLetters: false },
+      splitSharedLetters: true },
     render: { ...DEFAULT_RENDER, theme: values.theme ?? selected?.theme ?? 'plain',
       width, height: values.height ?? DEFAULT_RENDER.height, fps,
       holdSeconds: values.hold ?? DEFAULT_RENDER.holdSeconds,

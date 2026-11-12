@@ -30,6 +30,8 @@ If FFmpeg is not on your PATH, use `--ffmpeg "/path/to/ffmpeg"` or set `FFMPEG_P
 
 The presets are stored in `examples/animations/presets.json`. NEW YEAR uses the generator's two-line layout. HAPPY BIRTHDAY exceeds the 12-character limit as a single input, so the birthday design uses HAPPY and BIRTHDAY as its two arrangements.
 
+New exports always divide each occurrence of a letter or digit shared by both inputs into at least two pieces. This applies to presets and custom text. Shared punctuation is excluded, and there is no option to disable the rule for a new export.
+
 Run from the repository root:
 
 ```sh
@@ -59,13 +61,15 @@ Use `--gif-width` and `--gif-fps` to control the smaller preview. These values c
 
 ## Reproduce an Export
 
-Each design includes a `.recipe.json` file containing the text, generator version, seed, shared-character option, theme, colors and timing options, dimensions, encoding environment, and a checksum of the generated geometry. Source-file checksums identify the exporter and generator used. When Git metadata is available, the recipe also records the commit and whether the working tree had changes.
+Each design includes a `.recipe.json` file containing the text, generator version, seed, recorded shared-character rule, theme, colors and timing options, dimensions, encoding environment, and a checksum of the generated geometry. Source-file checksums identify the exporter and generator used. When Git metadata is available, the recipe also records the commit and whether the working tree had changes.
 
 ```sh
 npm run export:animation -- --recipe exports/happy-birthday/happy-birthday.recipe.json --out exports/birthday-reproduced
 ```
 
 Reproduction checks the source files and regenerated geometry before exporting. A changed source file or unexpected geometry causes a clear error. `--recipe` can be combined with `--out`, `--ffmpeg`, and `--force`; use the normal preset/custom flags to make a new variation.
+
+Recipe replay preserves its recorded shared-character flag, including `false` in an older recipe. Use the matching source revision to replay an older export. Creating a new variation uses the current rule and always splits shared letters and digits.
 
 The configuration and sampled frames are deterministic for the same source and options. Different FFmpeg, librsvg, or codec versions can rasterize or encode differently, so the recipe is not a promise of byte-identical video across machines.
 

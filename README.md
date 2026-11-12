@@ -11,7 +11,7 @@ This is an experimental prototype. Some pairs produce clear lettering and manage
 
 Enter two words or phrases and choose **Make puzzle**. Select either input above the board or choose **Rearrange** to see the other arrangement. The **Play** button identifies the outline you will assemble.
 
-Enable **Split shared letters and numbers** before choosing **Make puzzle** to require at least two pieces for every occurrence of a letter or digit found in both inputs. This includes repeated characters and identical inputs. Punctuation is excluded. Characters already split into multiple pieces need no further division.
+New puzzles always use at least two pieces for every occurrence of a letter or digit found in both inputs. This includes repeated characters and identical inputs. Punctuation is excluded. Characters already split into multiple pieces need no further division.
 
 During play, the two arrangement buttons are labeled **Target**. Choose either word or phrase to play that target without leaving play mode. Changing the target starts a new round; choosing the active target keeps the current progress.
 
@@ -19,7 +19,7 @@ During play, the two arrangement buttons are labeled **Target**. Choose either w
 - Select a piece and choose **Rotate piece** to turn it.
 - With a keyboard, use Tab to select a piece, the arrow keys to move it, and R to rotate it.
 - **Place a piece** supplies one hint. **Start over** resets the current round.
-- **Copy link** creates a reproducible puzzle link. **New cut** tries the next seed.
+- **Copy link** creates a reproducible puzzle link. **New cut** tries the next seed using the current generator and automatic shared-character splitting.
 - **Board size** offers Fit, 150%, 200%, and 300%. On an enlarged board, scroll or swipe empty space to move around it. Zoom changes the display without changing the pieces.
 
 ### Input Rules
@@ -105,7 +105,7 @@ The two inputs, generator version, seed, shared-character split option, and piec
 
 Generation must remain deterministic for a given version, seed, and option set. Any future change that alters the generated geometry must use a new generator version or retain the old implementation for existing links.
 
-Version 1, 2, and 3 links retain their original input rules, shapes, and pieces. New puzzles use version 4. When viewing an earlier link, choose **Make puzzle** to use the current input rules and options. **New cut** keeps the current puzzle's generator version and split option.
+Opening or copying an existing version 1, 2, 3, or 4 link retains its original input rules, shapes, pieces, and shared-character splitting setting. This includes version 4 links created with splitting disabled. **Make puzzle**, **New cut**, and the example pairs create puzzles with version 4 and shared-character splitting enabled. **New cut** retains the displayed inputs and advances the seed, including when starting from an older link.
 
 ## Limits
 

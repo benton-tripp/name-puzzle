@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { generatePuzzle } from '../src/engine.js';
 import {
   configFromFlags, configFromRecipe, exportSlug, EXPORTER_VERSION, SOURCE_FILES,
   parseCommandLine, validateConfig,
@@ -24,6 +25,7 @@ test('the three requested occasions resolve to complete export configurations', 
     assert.deepEqual([config.puzzle.first, config.puzzle.second], words);
     assert.equal(config.puzzle.version, 4);
     assert.equal(config.puzzle.seed, presets[id].seed);
+    assert.equal(config.puzzle.splitSharedLetters, true);
     assert.equal(config.render.theme, id);
     assert.deepEqual(config.output.formats, ['mp4', 'gif']);
   }
@@ -34,7 +36,7 @@ test('custom text follows the website normalization without losing supported spa
   assert.equal(config.puzzle.first, 'CAFE & TEA');
   assert.equal(config.puzzle.second, 'A-B + 12');
   assert.equal(config.puzzle.version, 4);
-  assert.equal(config.puzzle.splitSharedLetters, false);
+  assert.equal(config.puzzle.splitSharedLetters, true);
   assert.throws(() => fromArgs(['--first', "IT'S", '--second', 'GOOD']), /Use letters/);
 });
 
@@ -52,12 +54,49 @@ test('preset overrides create explicit variations while leaving the catalogue in
     '--seed', '4294967295', '--theme', 'plain', '--background', '#ABCDEF',
     '--colors', '#112233, #AABBCC', '--format', 'gif']);
   assert.deepEqual(config.puzzle, { version: 4, first: 'BEST', second: 'WISHES',
-    seed: 4294967295, splitSharedLetters: false });
+    seed: 4294967295, splitSharedLetters: true });
   assert.equal(config.render.theme, 'plain');
   assert.equal(config.render.background, '#abcdef');
   assert.deepEqual(config.render.colors, ['#112233', '#aabbcc']);
   assert.deepEqual(config.output.formats, ['gif']);
   assert.deepEqual(presets, original);
+});
+
+test('new exports always split shared characters without a public opt-out', () => {
+  const custom = configFromFlags({ first: 'A1', second: 'A1', splitSharedLetters: false }, presets);
+  assert.equal(custom.puzzle.splitSharedLetters, true);
+  const legacyPreset = { ...presets, birthday: { ...presets.birthday, splitSharedLetters: false } };
+  assert.equal(configFromFlags({ preset: 'birthday' }, legacyPreset).puzzle.splitSharedLetters, true);
+  assert.throws(() => parseCommandLine(['--first', 'A1', '--second', 'A1', '--split-shared-letters', 'false']), /Unknown option/);
+  assert.throws(() => parseCommandLine(['--first', 'A1', '--second', 'A1', '--no-split-shared-letters']), /Unknown option/);
+});
+
+test('new custom exports divide each occurrence of a shared letter or digit', () => {
+  const config = fromArgs(['--first', 'A1 & A1', '--second', 'A1 & A1', '--seed', '7']);
+  const puzzle = generatePuzzle(config.puzzle);
+  assert.equal(puzzle.splitSharedLetters, true);
+  assert.equal(puzzle.metrics.sharedGlyphOccurrences, 8, 'the shared ampersand is excluded');
+  for (const side of ['a', 'b']) {
+    const owners = new Map();
+    for (const piece of puzzle.pieces) {
+      const pose = piece[side];
+      for (const [x, y] of piece.cells) {
+        const corners = [[x, y], [x + 1, y], [x, y + 1], [x + 1, y + 1]];
+        const rotated = corners.map(([cx, cy]) => [
+          [cx, -cy, -cx, cy][pose.turn] + pose.x,
+          [cy, cx, -cy, -cx][pose.turn] + pose.y,
+        ]);
+        const point = [Math.min(...rotated.map(([cx]) => cx)), Math.min(...rotated.map(([, cy]) => cy))];
+        owners.set(point.join(','), piece.id);
+      }
+    }
+    for (const glyph of puzzle.targets[side].glyphs) {
+      if (!/[A-Z0-9]/.test(glyph.character)) continue;
+      const pieces = new Set(glyph.cells.map(cell => owners.get(cell.join(','))));
+      assert.ok(!pieces.has(undefined), `${side}: ${glyph.character} is fully covered`);
+      assert.ok(pieces.size >= 2, `${side}: ${glyph.character} at position ${glyph.index} is divided`);
+    }
+  }
 });
 
 test('small previews cap default GIF dimensions and frame rate to the source', () => {
@@ -144,6 +183,16 @@ test('recipes require supported versions, checksums, and complete valid configur
   const incomplete = recipe();
   delete incomplete.configuration.puzzle.splitSharedLetters;
   assert.throws(() => configFromRecipe(incomplete), /true or false/);
+});
+
+test('recipe replay preserves its recorded split rule instead of applying new-export defaults', () => {
+  for (const splitSharedLetters of [false, true]) {
+    const saved = recipe();
+    saved.configuration.puzzle.splitSharedLetters = splitSharedLetters;
+    const replay = configFromRecipe(saved);
+    assert.equal(replay.puzzle.splitSharedLetters, splitSharedLetters);
+    assert.deepEqual(replay, saved.configuration);
+  }
 });
 
 test('recipes require the exact source-file manifest and lowercase SHA-256 values', () => {

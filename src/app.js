@@ -6,7 +6,6 @@ const get = (id) => document.getElementById(id);
 const form = get('name-form');
 const firstInput = get('first-name');
 const secondInput = get('second-name');
-const splitInput = get('split-shared-letters');
 const section = document.querySelector('.puzzle-section');
 const controlIds = ['show-first', 'show-second', 'rearrange', 'play', 'share', 'new-cut'];
 let currentPuzzle = null;
@@ -65,7 +64,6 @@ function setBusy(value) {
   busy = value;
   firstInput.disabled = value;
   secondInput.disabled = value;
-  splitInput.disabled = value;
   section.setAttribute('aria-busy', String(value));
   get('generate').disabled = value;
   get('generate').textContent = value ? 'Generating…' : 'Make puzzle';
@@ -107,7 +105,7 @@ function nextSeed() {
   return Date.now() >>> 0;
 }
 
-function generate({ first = firstInput.value, second = secondInput.value, seed = nextSeed(), splitSharedLetters = splitInput.checked, version = 4 } = {}) {
+function generate({ first = firstInput.value, second = secondInput.value, seed = nextSeed(), splitSharedLetters = true, version = 4 } = {}) {
   stopWorker();
   const job = ++generation;
   clearError();
@@ -154,8 +152,7 @@ function generate({ first = firstInput.value, second = secondInput.value, seed =
       currentPuzzle = data.puzzle;
       firstInput.value = currentPuzzle.first;
       secondInput.value = currentPuzzle.second;
-      splitInput.checked = currentPuzzle.splitSharedLetters === true;
-      get('legacy-note').hidden = currentPuzzle.version >= 4;
+      get('legacy-note').hidden = currentPuzzle.version === 4 && currentPuzzle.splitSharedLetters === true;
       get('show-first').textContent = currentPuzzle.first;
       get('show-second').textContent = currentPuzzle.second;
       get('piece-count').textContent = `${currentPuzzle.pieces.length} pieces`;
@@ -218,7 +215,7 @@ get('rotate').addEventListener('click', () => board.rotateSelected(1));
 get('hint').addEventListener('click', () => board.hint());
 get('reset').addEventListener('click', () => board.reset());
 get('new-cut').addEventListener('click', () => {
-  if (currentPuzzle) generate({ first: currentPuzzle.first, second: currentPuzzle.second, seed: (currentPuzzle.seed + 1) >>> 0, splitSharedLetters: currentPuzzle.splitSharedLetters === true, version: currentPuzzle.version });
+  if (currentPuzzle) generate({ first: currentPuzzle.first, second: currentPuzzle.second, seed: (currentPuzzle.seed + 1) >>> 0 });
 });
 get('share').addEventListener('click', async () => {
   if (!currentPuzzle) return;

@@ -1,6 +1,6 @@
 {
   "name": "name-puzzle",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "Word Shapes rearranges one set of puzzle pieces into two words, names, or short phrases in the browser.",
